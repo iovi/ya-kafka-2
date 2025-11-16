@@ -1,0 +1,14 @@
+**/.classpath
+**/.checkstyle
+**/.idea
+**/*.iml
+**/.pmd
+**/.project
+**/.settings
+**/.springbeans
+**/bin
+**/logs
+**/META-INF
+**/target
+**/git.properties
+/.apt_generated_tests/
