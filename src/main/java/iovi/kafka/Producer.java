@@ -1,31 +1,31 @@
 package iovi.kafka;
 
 import iovi.dto.MessageDto;
-import iovi.dto.User;
 import iovi.service.UserService;
 import iovi.util.RandomMessageUtilService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.errors.SerializationException;
-import org.apache.kafka.common.serialization.LongSerializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.Arrays;
+import java.util.Properties;
+import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 
 @Slf4j
 @Service
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class Producer {
 
     private final UserService userService;
@@ -35,8 +35,6 @@ public class Producer {
 
     private KafkaProducer<String, MessageDto> producer;
 
-    private final Random random = new Random();
-
     @PostConstruct
     public void setUpProducer() {
         Properties properties = new Properties();
@@ -44,6 +42,18 @@ public class Producer {
         properties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName()); //ключ сериализуется как строка
         properties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class.getName()); //значение сериализуется как json
         producer = new KafkaProducer<>(properties);
+
+        //создадим топики
+        Properties adminProps = new Properties();
+        adminProps.put("bootstrap.servers", kafkaAddress);
+        try (AdminClient adminClient = AdminClient.create(adminProps)) {
+            NewTopic inputTopic = new NewTopic("word_topic_in", 1, (short) 1);
+            NewTopic outputTopic = new NewTopic("word_topic_out", 1, (short) 1);
+            adminClient.createTopics(Arrays.asList(inputTopic, outputTopic)).all().get();
+        } catch (InterruptedException | ExecutionException e) {
+            log.warn("topic creation error " + e.getMessage());
+        }
+
     }
 
     @PreDestroy
@@ -62,7 +72,7 @@ public class Producer {
             messageDto.setUserId(u.getId());
 
             // отправка сообщения
-            ProducerRecord<String, MessageDto> record = new ProducerRecord<>("word_topic", messageDto.getUuid(),
+            ProducerRecord<String, MessageDto> record = new ProducerRecord<>("word_topic_in", messageDto.getUuid(),
                     messageDto);
             try {
                 producer.send(record, (metadata, e) -> {
