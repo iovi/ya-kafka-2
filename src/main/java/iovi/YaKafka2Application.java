@@ -1,5 +1,6 @@
 package iovi;
 
+import iovi.kafka.Streams;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -12,6 +13,7 @@ public class YaKafka2Application {
 
     public static void main(String[] args) {
         SpringApplication.run(YaKafka2Application.class, args);
+
     }
 
 }

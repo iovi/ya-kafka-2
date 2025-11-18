@@ -1,6 +1,7 @@
 package iovi.kafka;
 
 import iovi.dto.MessageDto;
+import iovi.serdes.MessageDtoSerializer;
 import iovi.service.UserService;
 import iovi.util.RandomMessageUtilService;
 import jakarta.annotation.PostConstruct;
@@ -19,6 +20,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -33,6 +35,9 @@ public class Producer {
     @Value("${my.kafka.address}")
     private String kafkaAddress;
 
+    @Value("${my.kafka.in.topic}")
+    private String inTopic;
+
     private KafkaProducer<String, MessageDto> producer;
 
     @PostConstruct
@@ -40,16 +45,15 @@ public class Producer {
         Properties properties = new Properties();
         properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaAddress);
         properties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName()); //ключ сериализуется как строка
-        properties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class.getName()); //значение сериализуется как json
+        properties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, MessageDtoSerializer.class.getName());
         producer = new KafkaProducer<>(properties);
 
         //создадим топики
         Properties adminProps = new Properties();
         adminProps.put("bootstrap.servers", kafkaAddress);
         try (AdminClient adminClient = AdminClient.create(adminProps)) {
-            NewTopic inputTopic = new NewTopic("word_topic_in", 1, (short) 1);
-            NewTopic outputTopic = new NewTopic("word_topic_out", 1, (short) 1);
-            adminClient.createTopics(Arrays.asList(inputTopic, outputTopic)).all().get();
+            NewTopic inputTopic = new NewTopic(inTopic, 1, (short) 1);
+            adminClient.createTopics(List.of(inputTopic)).all().get();
         } catch (InterruptedException | ExecutionException e) {
             log.warn("topic creation error " + e.getMessage());
         }
@@ -61,7 +65,7 @@ public class Producer {
         producer.close();
     }
 
-    @Scheduled(fixedDelay = 2000)
+    @Scheduled(fixedDelay = 10000)
     public void sendRecord() {
         //сообщения будет слать каждый пользователь
         userService.getUsers().forEach( u-> {
@@ -72,7 +76,7 @@ public class Producer {
             messageDto.setUserId(u.getId());
 
             // отправка сообщения
-            ProducerRecord<String, MessageDto> record = new ProducerRecord<>("word_topic_in", messageDto.getUuid(),
+            ProducerRecord<String, MessageDto> record = new ProducerRecord<>(inTopic, messageDto.getUuid(),
                     messageDto);
             try {
                 producer.send(record, (metadata, e) -> {

@@ -54,6 +54,11 @@
             <artifactId>spring-kafka</artifactId>
             <version>3.3.10</version>
         </dependency>
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-streams</artifactId>
+            <version>3.6.0</version> <!-- Убедитесь, что версия соответствует вашей Kafka -->
+        </dependency>
     </dependencies>
 
     <build>
