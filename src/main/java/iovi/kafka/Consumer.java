@@ -48,7 +48,6 @@ public class Consumer {
         consumer = new KafkaConsumer<>(properties);
 
 
-
         //подписываемся на все
         consumer.subscribe(userService.getUsers().stream().map(u -> outTopicPrefix + u.getId())
                 .collect(Collectors.toList()));
