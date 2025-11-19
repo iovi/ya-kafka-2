@@ -25,7 +25,9 @@ public class UserService {
             User user = new User();
             user.setId(i);
             user.setName(String.format("Vasya%d", i));
+
             users.add(user);
+
         }
     }
 }

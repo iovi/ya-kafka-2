@@ -7,8 +7,6 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -19,10 +17,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Properties;
-import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -52,22 +47,8 @@ public class Consumer {
         properties.put(ConsumerConfig.GROUP_ID_CONFIG, "group1");
         consumer = new KafkaConsumer<>(properties);
 
-        //создадим топики
-        Properties adminProps = new Properties();
-        adminProps.put("bootstrap.servers", kafkaAddress);
 
-        // У каждого пользователя свой топик для получения, создаём их
-        try (AdminClient adminClient = AdminClient.create(adminProps)) {
-            List<NewTopic> topics = new ArrayList<>();
-            userService.getUsers().forEach(u -> {
-                String topicName = outTopicPrefix + u.getId();
-                NewTopic outputTopic = new NewTopic(topicName, 1, (short) 1);
-                topics.add(outputTopic);
-            });
-            adminClient.createTopics(topics).all().get();
-        } catch (InterruptedException | ExecutionException e) {
-            log.warn("topic creation error " + e.getMessage());
-        }
+
         //подписываемся на все
         consumer.subscribe(userService.getUsers().stream().map(u -> outTopicPrefix + u.getId())
                 .collect(Collectors.toList()));

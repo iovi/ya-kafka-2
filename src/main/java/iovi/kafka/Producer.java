@@ -26,7 +26,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
 @Slf4j
-@Service
+//@Service
 @RequiredArgsConstructor
 public class Producer {
 
@@ -48,7 +48,7 @@ public class Producer {
         properties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, MessageDtoSerializer.class.getName());
         producer = new KafkaProducer<>(properties);
 
-        //создадим топики
+        //создадим топик
         Properties adminProps = new Properties();
         adminProps.put("bootstrap.servers", kafkaAddress);
         try (AdminClient adminClient = AdminClient.create(adminProps)) {
