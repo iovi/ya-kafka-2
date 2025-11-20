@@ -1,5 +1,7 @@
 package iovi.service;
 
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.common.serialization.Serdes;
@@ -33,11 +35,14 @@ public class StateStoreService {
     @Value("${my.kafka.blocked.users.topic}")
     private String blockedUsersTopic;
 
-    private final String blockedUsersStore = "blocked_users";
+    @Value("${my.kafka.blocked.users.store}")
+    private String blockedUsersStoreName;
 
     private final SettingsProducerService settingsProducerService;
 
-    public void configureBlockedUsers() {
+
+    @PostConstruct
+    public void setStreams(){
         Properties props1 = new Properties();
         props1.put(StreamsConfig.APPLICATION_ID_CONFIG, "ya-kafka-2");
         props1.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaAddress);
@@ -48,13 +53,13 @@ public class StateStoreService {
         // Создаем KTable из топика блокированных пользователей
         KTable<Long, Long> blockedUsersTable = builder2.table(
                 blockedUsersTopic,
-                Materialized.<Long, Long, KeyValueStore<Bytes, byte[]>>as(blockedUsersStore)
+                Materialized.<Long, Long, KeyValueStore<Bytes, byte[]>>as(blockedUsersStoreName)
                         .withKeySerde(Serdes.Long())
                         .withValueSerde(Serdes.Long()));
 
-        // Запускаем приложение
-        KafkaStreams streams = new KafkaStreams(builder2.build(), props1);
+    }
 
+    public void configureBlockedUsers(KafkaStreams streams) {
         try {
             // Запуск
             streams.cleanUp();
@@ -64,12 +69,12 @@ public class StateStoreService {
             settingsProducerService.produceBlockedUsers();
 
             // Ждём, пока данные обработаются
-            waitForStateStoreToBeReady(streams, blockedUsersStore);
+            //waitForStateStoreToBeReady();
 
             // Показываем имеющиеся данные
-            printStateStore(streams, blockedUsersStore);
+            printStateStore(streams, blockedUsersStoreName);
 
-            streams.close();
+
         } catch (Throwable e) {
             log.error("Ошибка в приложении: " + e.getMessage());
             e.printStackTrace();
@@ -77,7 +82,7 @@ public class StateStoreService {
         }
     }
 
-    private void waitForStateStoreToBeReady(KafkaStreams streams, String storeName) throws InterruptedException {
+    public void waitForStateStoreToBeReady(KafkaStreams streams) throws InterruptedException {
         final long MAX_WAIT_MS = 60000;
         final long RETRY_INTERVAL_MS = 1000;
 
@@ -88,8 +93,8 @@ public class StateStoreService {
             if (streams.state() == KafkaStreams.State.RUNNING) {
                 try {
                     streams.store(StoreQueryParameters.fromNameAndType(
-                            storeName, QueryableStoreTypes.keyValueStore()));
-                    log.info("State store {} готово к запросам", storeName);
+                            blockedUsersStoreName, QueryableStoreTypes.keyValueStore()));
+                    log.info("State store {} готово к запросам", blockedUsersStoreName);
                     return;
                 } catch (Exception e) {
                     log.info("Ожидание готовности state store... (" +
@@ -101,13 +106,13 @@ public class StateStoreService {
 
             Thread.sleep(RETRY_INTERVAL_MS);
         }
-        log.error("Превышено время ожидания готовности state store {}", storeName);
+        log.error("Превышено время ожидания готовности state store {}", blockedUsersStoreName);
     }
 
     private void printStateStore(KafkaStreams streams, String storeName) {
         try {
             ReadOnlyKeyValueStore<Long, Long> store = streams.store(
-                    StoreQueryParameters.fromNameAndType(blockedUsersStore, QueryableStoreTypes.keyValueStore())
+                    StoreQueryParameters.fromNameAndType(blockedUsersStoreName, QueryableStoreTypes.keyValueStore())
             );
 
             KeyValueIterator<Long, Long> iterator = store.all();
@@ -129,5 +134,9 @@ public class StateStoreService {
         }
     }
 
+    public ReadOnlyKeyValueStore<Long, Long> getBlockedUsersStore(KafkaStreams streams) {
+        return streams.store(
+                StoreQueryParameters.fromNameAndType(blockedUsersStoreName, QueryableStoreTypes.keyValueStore()));
+    }
 
 }

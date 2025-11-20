@@ -26,7 +26,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
 @Slf4j
-//@Service
+@Service
 @RequiredArgsConstructor
 public class Producer {
 
