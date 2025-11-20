@@ -65,7 +65,7 @@ public class Producer {
         producer.close();
     }
 
-    @Scheduled(fixedDelay = 10000)
+    @Scheduled(fixedDelay = 20000)
     public void sendRecord() {
         //сообщения будет слать каждый пользователь
         userService.getUsers().forEach( u-> {

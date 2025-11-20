@@ -56,20 +56,15 @@ public class Streams implements CommandLineRunner {
     @Override
     public void run(String... args) throws Exception {
         setUpOutputTopics();
+        stateStoreService.configureBlockedUsers();
+        ReadOnlyKeyValueStore<Long, Long> blockedUsersStore = stateStoreService.getBlockedUsersStore();
 
         Properties props = new Properties();
         props.put(StreamsConfig.APPLICATION_ID_CONFIG, "ya-kafka-2");
         props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaAddress);
-        props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.Long().getClass());
+        props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass());
         props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, MessageDtoSerdes.class);
         StreamsBuilder builder = new StreamsBuilder();
-
-
-        // Запускаем приложение
-        KafkaStreams streams1 = new KafkaStreams(builder.build(), props);
-        stateStoreService.configureBlockedUsers(streams1);
-        //дождёмся готовности stateStore
-        stateStoreService.waitForStateStoreToBeReady(streams1);
 
 
         // Топология
@@ -77,26 +72,26 @@ public class Streams implements CommandLineRunner {
                 Consumed.with(Serdes.String(), new MessageDtoSerdes()));
         //каждому пользователю отправляем в свой выходной поток
         userService.getUsers().forEach(u -> {
-            ReadOnlyKeyValueStore<Long, Long> blockedUsersStore = stateStoreService.getBlockedUsersStore(streams1);
+            //ReadOnlyKeyValueStore<Long, Long> blockedUsersStore = stateStoreService.getBlockedUsersStore(streams1);
             KStream<String, MessageDto> filteredStream = stream.filter(
                     (key, value) ->
                             //не шлём сами себе
                             !value.getUserId().equals(u.getId())
                             // и не шлём, если отправитель указан как заблокированный для этого пользователя
-                            && !value.getUserId().equals(blockedUsersStore.get(u.getId()))
+                            //&& !value.getUserId().equals(blockedUsersStore.get(u.getId()))
             );
             filteredStream.to(outTopicPrefix + u.getId());
         });
 
+        // Запускаем приложение
+        KafkaStreams streams1 = new KafkaStreams(builder.build(), props);
 
         try {
             streams1.start();
-            System.out.println("Приложение запущено");
+            log.info("Приложение запущено");
 
         } catch (Throwable e) {
-            System.err.println("Ошибка при запуске приложения: " + e.getMessage());
-            e.printStackTrace();
-            System.exit(1);
+            log.error("Ошибка при запуске приложения: " + e.getMessage());
         }
     }
 
