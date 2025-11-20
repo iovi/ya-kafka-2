@@ -10,11 +10,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.common.serialization.Serdes;
+import org.apache.kafka.common.utils.Bytes;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.kstream.KStream;
+import org.apache.kafka.streams.kstream.KTable;
+import org.apache.kafka.streams.kstream.Materialized;
+import org.apache.kafka.streams.state.KeyValueStore;
+import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Service;
@@ -52,8 +57,8 @@ public class StreamsRunner implements CommandLineRunner {
     @Override
     public void run(String... args)  {
         setUpOutputTopics();
-        //stateStoreService.configureBlockedUsers();
-        //ReadOnlyKeyValueStore<Long, Long> blockedUsersStore = stateStoreService.getBlockedUsersStore();
+        stateStoreService.configureBlockedUsers();
+
 
         Properties props = new Properties();
         props.put(StreamsConfig.APPLICATION_ID_CONFIG, "ya-kafka-2");
@@ -64,18 +69,26 @@ public class StreamsRunner implements CommandLineRunner {
         // Создание топологии
         StreamsBuilder builder = new StreamsBuilder();
 
+        KTable<Long, Long> blockedUsersTable = builder.table(
+                blockedUsersTopic,
+                Materialized.<Long, Long, KeyValueStore<Bytes, byte[]>>as(blockedUsersStoreName)
+                        .withKeySerde(Serdes.Long())
+                        .withValueSerde(Serdes.Long()));
+
+
         KStream<String, MessageDto> inputStream = builder.stream(inTopic);
 
         //каждому пользователю отправляем в свой выходной поток
         userService.getUsers().forEach(u -> {
-            //ReadOnlyKeyValueStore<Long, Long> blockedUsersStore = stateStoreService.getBlockedUsersStore(streams1);
-            KStream<String, MessageDto> filteredStream = inputStream.filter(
-                    (key, value) ->
-                            //не шлём сами себе
-                            !value.getUserId().equals(u.getId())
-                    // и не шлём, если отправитель указан как заблокированный для этого пользователя
-                    //&& !value.getUserId().equals(blockedUsersStore.get(u.getId()))
+            ReadOnlyKeyValueStore<Long, Long> blockedUsersStore = stateStoreService.getBlockedUsersStore();
+            KStream<String, MessageDto> filteredStream = inputStream.filter((key, value) ->
+                    //не шлём сами себе
+                    !value.getUserId().equals(u.getId())
+                    //и не шлём, если отправитель заблокирован для данного пользователя
+                    && !value.getUserId().equals(blockedUsersStore.get(u.getId()))
             );
+
+
             filteredStream.to(outTopicPrefix + u.getId());
         });
 

@@ -41,10 +41,10 @@ public class StateStoreService {
 
     private KafkaStreams streams2;
 
-
+    @PostConstruct
     public void setStreams() {
         Properties props2 = new Properties();
-        props2.put(StreamsConfig.APPLICATION_ID_CONFIG, "ya-kafka-2");
+        props2.put(StreamsConfig.APPLICATION_ID_CONFIG, "ya-kafka-3");
         props2.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaAddress);
         props2.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.Long().getClass());
         props2.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.Long().getClass());
