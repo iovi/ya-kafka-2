@@ -9,7 +9,7 @@ public class MessageDto {
 
     private String uuid;
 
-    private String word;
+    private String messageText;
 
     private Long userId;
 }

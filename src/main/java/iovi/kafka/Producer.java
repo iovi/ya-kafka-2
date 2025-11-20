@@ -15,15 +15,15 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Slf4j
 @Service
@@ -72,7 +72,8 @@ public class Producer {
             //создание сообщения
             MessageDto messageDto = new MessageDto();
             messageDto.setUuid(UUID.randomUUID().toString());
-            messageDto.setWord(RandomMessageUtilService.getRandomWord());
+            messageDto.setMessageText(Stream.generate(RandomMessageUtilService::getRandomWord)
+                    .limit(3).collect(Collectors.joining(" "))); //текст из трёх слов
             messageDto.setUserId(u.getId());
 
             // отправка сообщения

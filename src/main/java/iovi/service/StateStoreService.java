@@ -41,7 +41,7 @@ public class StateStoreService {
 
     private KafkaStreams streams2;
 
-    @PostConstruct
+
     public void setStreams() {
         Properties props2 = new Properties();
         props2.put(StreamsConfig.APPLICATION_ID_CONFIG, "ya-kafka-2");

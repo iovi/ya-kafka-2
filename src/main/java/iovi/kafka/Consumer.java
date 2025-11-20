@@ -43,7 +43,7 @@ public class Consumer {
         properties.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName()); //ключ десериализуется как строка
         properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, MessageDtoDeserializer.class.getName()); //значение десериализуется кастомно
         properties.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true"); // применение offset автоматическое
-        properties.put(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, workingPeriodMs); // автоматическое применение каждые ... мс
+        properties.put(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, workingPeriodMs);
         properties.put(ConsumerConfig.GROUP_ID_CONFIG, "group1");
         consumer = new KafkaConsumer<>(properties);
 
@@ -59,7 +59,7 @@ public class Consumer {
     }
 
     @Scheduled(fixedDelayString = workingPeriodMs)
-    public void getSingleMessage() {
+    public void getMessages() {
         try {
             ConsumerRecords<String, MessageDto> records = consumer.poll(Duration.ofMillis(100));
             for (ConsumerRecord<String, MessageDto> record : records) {

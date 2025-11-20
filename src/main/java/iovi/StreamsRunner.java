@@ -1,4 +1,4 @@
-package iovi.kafka;
+package iovi;
 
 
 import iovi.dto.MessageDto;
@@ -11,14 +11,10 @@ import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
-import org.apache.kafka.streams.StoreQueryParameters;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.kstream.KStream;
-import org.apache.kafka.streams.kstream.KTable;
-import org.apache.kafka.streams.state.QueryableStoreTypes;
-import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Service;
@@ -31,7 +27,7 @@ import java.util.concurrent.ExecutionException;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class Streams implements CommandLineRunner {
+public class StreamsRunner implements CommandLineRunner {
 
     @Value("${my.kafka.address}")
     private String kafkaAddress;
@@ -54,45 +50,40 @@ public class Streams implements CommandLineRunner {
 
 
     @Override
-    public void run(String... args) throws Exception {
+    public void run(String... args)  {
         setUpOutputTopics();
-        stateStoreService.configureBlockedUsers();
-        ReadOnlyKeyValueStore<Long, Long> blockedUsersStore = stateStoreService.getBlockedUsersStore();
+        //stateStoreService.configureBlockedUsers();
+        //ReadOnlyKeyValueStore<Long, Long> blockedUsersStore = stateStoreService.getBlockedUsersStore();
 
         Properties props = new Properties();
         props.put(StreamsConfig.APPLICATION_ID_CONFIG, "ya-kafka-2");
         props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaAddress);
         props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass());
         props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, MessageDtoSerdes.class);
+
+        // Создание топологии
         StreamsBuilder builder = new StreamsBuilder();
 
+        KStream<String, MessageDto> inputStream = builder.stream(inTopic);
 
-        // Топология
-        KStream<String, MessageDto> stream = builder.stream(inTopic,
-                Consumed.with(Serdes.String(), new MessageDtoSerdes()));
         //каждому пользователю отправляем в свой выходной поток
         userService.getUsers().forEach(u -> {
             //ReadOnlyKeyValueStore<Long, Long> blockedUsersStore = stateStoreService.getBlockedUsersStore(streams1);
-            KStream<String, MessageDto> filteredStream = stream.filter(
+            KStream<String, MessageDto> filteredStream = inputStream.filter(
                     (key, value) ->
                             //не шлём сами себе
                             !value.getUserId().equals(u.getId())
-                            // и не шлём, если отправитель указан как заблокированный для этого пользователя
-                            //&& !value.getUserId().equals(blockedUsersStore.get(u.getId()))
+                    // и не шлём, если отправитель указан как заблокированный для этого пользователя
+                    //&& !value.getUserId().equals(blockedUsersStore.get(u.getId()))
             );
             filteredStream.to(outTopicPrefix + u.getId());
         });
 
-        // Запускаем приложение
-        KafkaStreams streams1 = new KafkaStreams(builder.build(), props);
+        // Инициализация и запуск Kafka Streams
+        KafkaStreams streams = new KafkaStreams(builder.build(), props);
+        streams.start();
 
-        try {
-            streams1.start();
-            log.info("Приложение запущено");
-
-        } catch (Throwable e) {
-            log.error("Ошибка при запуске приложения: " + e.getMessage());
-        }
+        System.out.println("Kafka Streams приложение запущено успешно.");
     }
 
     private void setUpOutputTopics() {
