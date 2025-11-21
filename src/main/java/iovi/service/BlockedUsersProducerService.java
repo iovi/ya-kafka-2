@@ -19,7 +19,7 @@ import java.util.concurrent.ExecutionException;
  */
 @Slf4j
 @Service
-public class SettingsProducerService {
+public class BlockedUsersProducerService {
 
     @Value("${my.kafka.address}")
     private String kafkaAddress;

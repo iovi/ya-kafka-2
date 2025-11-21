@@ -37,7 +37,7 @@ public class StateStoreService {
     @Value("${my.kafka.blocked.users.store}")
     private String blockedUsersStoreName;
 
-    private final SettingsProducerService settingsProducerService;
+    private final BlockedUsersProducerService blockedUsersProducerService;
 
     private KafkaStreams streams2;
 
@@ -67,7 +67,7 @@ public class StateStoreService {
     public void configureBlockedUsers() {
         try {
             // Заполняем данными
-            settingsProducerService.produceBlockedUsers();
+            blockedUsersProducerService.produceBlockedUsers();
 
             // Ждём, пока данные обработаются
             waitForStateStoreToBeReady();

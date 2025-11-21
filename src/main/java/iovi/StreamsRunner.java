@@ -3,6 +3,7 @@ package iovi;
 
 import iovi.dto.MessageDto;
 import iovi.serdes.MessageDtoSerdes;
+import iovi.service.BadWordsService;
 import iovi.service.StateStoreService;
 import iovi.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +15,7 @@ import org.apache.kafka.common.utils.Bytes;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
+import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.KTable;
@@ -25,9 +27,11 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -53,12 +57,12 @@ public class StreamsRunner implements CommandLineRunner {
 
     private final StateStoreService stateStoreService;
 
+    private final BadWordsService badWordsService;
 
     @Override
     public void run(String... args)  {
         setUpOutputTopics();
         stateStoreService.configureBlockedUsers();
-
 
         Properties props = new Properties();
         props.put(StreamsConfig.APPLICATION_ID_CONFIG, "ya-kafka-2");
@@ -87,9 +91,10 @@ public class StreamsRunner implements CommandLineRunner {
                     //и не шлём, если отправитель заблокирован для данного пользователя
                     && !value.getUserId().equals(blockedUsersStore.get(u.getId()))
             );
+            KStream<String, MessageDto> maskedStream = filteredStream.mapValues(m ->
+                    new MessageDto(m.getUuid(), badWordsService.mask(m.getMessageText()), m.getUserId()));
 
-
-            filteredStream.to(outTopicPrefix + u.getId());
+            maskedStream.to(outTopicPrefix + u.getId());
         });
 
         // Инициализация и запуск Kafka Streams
