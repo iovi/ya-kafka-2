@@ -25,6 +25,7 @@ public class BadWordsService {
         return badWords.contains(word);
     }
 
+    /** Заменяет в тексте все запрещённые слова на три звёздочки */
     public String mask(String text){
         return Arrays.stream(text.split(" ")).map(s-> isBad(s) ? "***" : s)
                 .collect(Collectors.joining(" "));

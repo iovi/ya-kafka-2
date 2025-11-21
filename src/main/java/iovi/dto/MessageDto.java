@@ -11,9 +11,12 @@ import lombok.ToString;
 @AllArgsConstructor
 public class MessageDto {
 
+    /**Уникальный ид. сообщения*/
     private String uuid;
 
+    /**Текст сообщения*/
     private String messageText;
 
+    /**Ид. пользователя-отправителя*/
     private Long userId;
 }
