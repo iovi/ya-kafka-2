@@ -5,18 +5,21 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Data
 @ToString
 @NoArgsConstructor
 @AllArgsConstructor
 public class MessageDto {
 
-    /**Уникальный ид. сообщения*/
-    private String uuid;
-
-    /**Текст сообщения*/
+    /** Текст сообщения */
     private String messageText;
 
-    /**Ид. пользователя-отправителя*/
+    /** Ид. пользователя-отправителя */
     private Long userId;
+
+    /** Чёрный список пользователей, которым читать это сообщение не положено */
+    private List<Long> userIdsBlackList = new ArrayList<>();
 }

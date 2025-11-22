@@ -13,14 +13,13 @@ import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.serialization.StringSerializer;
+import org.apache.kafka.common.serialization.LongSerializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Properties;
-import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -38,13 +37,13 @@ public class Producer {
     @Value("${my.kafka.in.topic}")
     private String inTopic;
 
-    private KafkaProducer<String, MessageDto> producer;
+    private KafkaProducer<Long, MessageDto> producer;
 
     @PostConstruct
     public void setUpProducer() {
         Properties properties = new Properties();
         properties.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaAddress);
-        properties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName()); //ключ сериализуется как строка
+        properties.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, LongSerializer.class.getName()); //ключ сериализуется как строка
         properties.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, MessageDtoSerializer.class.getName());
         producer = new KafkaProducer<>(properties);
 
@@ -71,13 +70,12 @@ public class Producer {
         userService.getUsers().forEach( u-> {
             //создание сообщения
             MessageDto messageDto = new MessageDto();
-            messageDto.setUuid(UUID.randomUUID().toString());
             messageDto.setMessageText(Stream.generate(RandomMessageUtilService::getRandomWord)
                     .limit(3).collect(Collectors.joining(" "))); //текст из трёх слов
             messageDto.setUserId(u.getId());
 
             // отправка сообщения
-            ProducerRecord<String, MessageDto> record = new ProducerRecord<>(inTopic, messageDto.getUuid(),
+            ProducerRecord<Long, MessageDto> record = new ProducerRecord<>(inTopic, messageDto.getUserId(),
                     messageDto);
             try {
                 producer.send(record, (metadata, e) -> {

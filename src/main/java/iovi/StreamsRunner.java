@@ -5,7 +5,6 @@ import iovi.dto.MessageDto;
 import iovi.serdes.MessageDtoSerdes;
 import iovi.service.BadWordsService;
 import iovi.service.StateStoreService;
-import iovi.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.admin.AdminClient;
@@ -15,23 +14,18 @@ import org.apache.kafka.common.utils.Bytes;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
-import org.apache.kafka.streams.Topology;
-import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.KTable;
 import org.apache.kafka.streams.kstream.Materialized;
 import org.apache.kafka.streams.state.KeyValueStore;
-import org.apache.kafka.streams.state.ReadOnlyKeyValueStore;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -44,8 +38,8 @@ public class StreamsRunner implements CommandLineRunner {
     @Value("${my.kafka.in.topic}")
     private String inTopic;
 
-    @Value("${my.kafka.out.topic.prefix}")
-    private String outTopicPrefix;
+    @Value("${my.kafka.out.topic}")
+    private String outTopic;
 
     @Value("${my.kafka.blocked.users.topic}")
     private String blockedUsersTopic;
@@ -53,49 +47,48 @@ public class StreamsRunner implements CommandLineRunner {
     @Value("${my.kafka.blocked.users.store}")
     private String blockedUsersStoreName;
 
-    private final UserService userService;
-
     private final StateStoreService stateStoreService;
 
     private final BadWordsService badWordsService;
 
     @Override
-    public void run(String... args)  {
+    public void run(String... args) {
         setUpOutputTopics();
         stateStoreService.configureBlockedUsers();
 
         Properties props = new Properties();
         props.put(StreamsConfig.APPLICATION_ID_CONFIG, "ya-kafka-2");
         props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaAddress);
-        props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass());
+        props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.Long().getClass());
         props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, MessageDtoSerdes.class);
 
-        // Создание топологии
         StreamsBuilder builder = new StreamsBuilder();
 
+        // таблица с заблокированными пользователями
         KTable<Long, Long> blockedUsersTable = builder.table(
                 blockedUsersTopic,
                 Materialized.<Long, Long, KeyValueStore<Bytes, byte[]>>as(blockedUsersStoreName)
                         .withKeySerde(Serdes.Long())
                         .withValueSerde(Serdes.Long()));
 
+        // получаем из входного топика
+        KStream<Long, MessageDto> inputStream = builder.stream(inTopic);
 
-        KStream<String, MessageDto> inputStream = builder.stream(inTopic);
+        // добавляем информацию о заблокированных полльзователях.
+        // Предполагается, что пользователи сами не будут получать не предназначенные им сообщения :)
+        KStream<Long, MessageDto> blockedUsersStream = inputStream.leftJoin(blockedUsersTable,
+                (message, blockedUser) -> {
+                    message.getUserIdsBlackList().add(blockedUser);
+                    return message;
+                });
 
-        //каждому пользователю отправляем в свой выходной поток
-        userService.getUsers().forEach(u -> {
-            ReadOnlyKeyValueStore<Long, Long> blockedUsersStore = stateStoreService.getBlockedUsersStore();
-            KStream<String, MessageDto> filteredStream = inputStream.filter((key, value) ->
-                    //не шлём сами себе
-                    !value.getUserId().equals(u.getId())
-                    //и не шлём, если отправитель заблокирован для данного пользователя
-                    && !value.getUserId().equals(blockedUsersStore.get(u.getId()))
-            );
-            KStream<String, MessageDto> maskedStream = filteredStream.mapValues(m ->
-                    new MessageDto(m.getUuid(), badWordsService.mask(m.getMessageText()), m.getUserId()));
+        // маскируем запрещённые слова
+        KStream<Long, MessageDto> maskedStream = blockedUsersStream.mapValues(m ->
+                new MessageDto(badWordsService.mask(m.getMessageText()), m.getUserId(), m.getUserIdsBlackList()));
 
-            maskedStream.to(outTopicPrefix + u.getId());
-        });
+        //направляем всё в выходной топик
+        maskedStream.to(outTopic);
+
 
         // Инициализация и запуск Kafka Streams
         KafkaStreams streams = new KafkaStreams(builder.build(), props);
@@ -107,14 +100,11 @@ public class StreamsRunner implements CommandLineRunner {
     private void setUpOutputTopics() {
         Properties adminProps = new Properties();
         adminProps.put("bootstrap.servers", kafkaAddress);
-        // У каждого пользователя свой топик для получения в виде префикса , создаём их
+        // создаём исходящий топик
         try (AdminClient adminClient = AdminClient.create(adminProps)) {
             List<NewTopic> topics = new ArrayList<>();
-            userService.getUsers().forEach(u -> {
-                String topicName = outTopicPrefix + u.getId();
-                NewTopic outputTopic = new NewTopic(topicName, 1, (short) 1);
-                topics.add(outputTopic);
-            });
+            NewTopic outputTopic = new NewTopic(outTopic, 1, (short) 1);
+            topics.add(outputTopic);
             adminClient.createTopics(topics).all().get();
         } catch (InterruptedException | ExecutionException e) {
             log.warn("topic creation error " + e.getMessage());

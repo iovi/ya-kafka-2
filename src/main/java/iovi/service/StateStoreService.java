@@ -28,9 +28,6 @@ public class StateStoreService {
     @Value("${my.kafka.in.topic}")
     private String inTopic;
 
-    @Value("${my.kafka.out.topic.prefix}")
-    private String outTopicPrefix;
-
     @Value("${my.kafka.blocked.users.topic}")
     private String blockedUsersTopic;
 
